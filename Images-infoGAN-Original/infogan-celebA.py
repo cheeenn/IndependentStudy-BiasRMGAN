@@ -15,6 +15,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
+############################################################->
+from torch.utils import data
+from torchvision import transforms as T
+from torchvision.datasets import ImageFolder
+from PIL import Image
+import torch
+import os
+import random
+############################################################<-
+
 os.makedirs('images/static/', exist_ok=True)
 os.makedirs('images/varying_c1/', exist_ok=True)
 os.makedirs('images/varying_c2/', exist_ok=True)
@@ -26,12 +36,27 @@ parser.add_argument('--lr', type=float, default=0.0002, help='adam: learning rat
 parser.add_argument('--b1', type=float, default=0.5, help='adam: decay of first order momentum of gradient')
 parser.add_argument('--b2', type=float, default=0.999, help='adam: decay of first order momentum of gradient')
 parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
-parser.add_argument('--latent_dim', type=int, default=62, help='dimensionality of the latent space')
-parser.add_argument('--code_dim', type=int, default=2, help='latent code')
-parser.add_argument('--n_classes', type=int, default=10, help='number of classes for dataset')
-parser.add_argument('--img_size', type=int, default=32, help='size of each image dimension')
-parser.add_argument('--channels', type=int, default=1, help='number of image channels')
+parser.add_argument('--latent_dim', type=int, default=127, help='dimensionality of the latent space') # old default 62, in StarGAN, 127
+parser.add_argument('--code_dim', type=int, default=1, help='latent code') # old default 2, in StarGAN, 1
+parser.add_argument('--n_classes', type=int, default=1, help='number of classes for dataset') # old default 10, in StarGAN, 1
+parser.add_argument('--img_size', type=int, default=128, help='size of each image dimension') # old default 32, in StarGAN, 128
+parser.add_argument('--channels', type=int, default=3, help='number of image channels') # old default 1, in StarGAN, 3
 parser.add_argument('--sample_interval', type=int, default=400, help='interval between image sampling')
+
+############################################################->
+parser.add_argument('--celeba_image_dir', type=str, default='data/CelebA_nocrop/images')
+parser.add_argument('--attr_path', type=str, default='data/list_attr_celeba.txt')
+parser.add_argument('--rafd_image_dir', type=str, default='data/RaFD/train')
+parser.add_argument('--log_dir', type=str, default='stargan/logs')
+parser.add_argument('--model_save_dir', type=str, default='stargan/models')
+parser.add_argument('--sample_dir', type=str, default='stargan/samples')
+parser.add_argument('--result_dir', type=str, default='stargan/results')
+parser.add_argument('--num_workers', type=int, default=1)
+parser.add_argument('--mode', type=str, default='train', choices=['train', 'test'])
+parser.add_argument('--selected_attrs', '--list', nargs='+', help='selected attributes for the CelebA dataset',
+                        default=['Pale_Skin'])
+############################################################<-
+
 opt = parser.parse_args()
 print(opt)
 
@@ -52,31 +77,119 @@ def to_categorical(y, num_columns):
 
     return Variable(FloatTensor(y_cat))
 
+############################################################->
+class CelebA(data.Dataset):
+    """Dataset class for the CelebA dataset."""
+
+    def __init__(self, image_dir, attr_path, selected_attrs, transform, mode):
+        """Initialize and preprocess the CelebA dataset."""
+        self.image_dir = image_dir
+        self.attr_path = attr_path
+        self.selected_attrs = selected_attrs
+        self.transform = transform
+        self.mode = mode
+        self.train_dataset = []
+        self.test_dataset = []
+        self.attr2idx = {}
+        self.idx2attr = {}
+        self.preprocess()
+
+        if mode == 'train':
+            self.num_images = len(self.train_dataset)
+        else:
+            self.num_images = len(self.test_dataset)
+
+    def preprocess(self):
+        """Preprocess the CelebA attribute file."""
+        lines = [line.rstrip() for line in open(self.attr_path, 'r')]
+        all_attr_names = lines[1].split()
+        for i, attr_name in enumerate(all_attr_names):
+            self.attr2idx[attr_name] = i
+            self.idx2attr[i] = attr_name
+
+        lines = lines[2:]
+        random.seed(1234)
+        random.shuffle(lines)
+        for i, line in enumerate(lines):
+            split = line.split()
+            filename = split[0]
+            values = split[1:]
+
+            label = []
+            for attr_name in self.selected_attrs:
+                idx = self.attr2idx[attr_name]
+                label.append(values[idx] == '1')
+
+            if (i+1) < 2000:
+                self.test_dataset.append([filename, label])
+            else:
+                self.train_dataset.append([filename, label])
+
+        print('Finished preprocessing the CelebA dataset...')
+
+    def __getitem__(self, index):
+        """Return one image and its corresponding attribute label."""
+        dataset = self.train_dataset if self.mode == 'train' else self.test_dataset
+        filename, label = dataset[index]
+        image = Image.open(os.path.join(self.image_dir, filename))
+        return self.transform(image), torch.FloatTensor(label)
+
+    def __len__(self):
+        """Return the number of images."""
+        return self.num_images
+
+
+def get_loader(image_dir, attr_path, selected_attrs, crop_size=178, image_size=128,
+               batch_size=16, dataset='CelebA', mode='train', num_workers=1):
+    """Build and return a data loader."""
+    transform = []
+    if mode == 'train':
+        transform.append(T.RandomHorizontalFlip())
+    transform.append(T.CenterCrop(crop_size))
+    transform.append(T.Resize(image_size))
+    transform.append(T.ToTensor())
+    transform.append(T.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
+    transform = T.Compose(transform)
+
+    if dataset == 'CelebA':
+        dataset = CelebA(image_dir, attr_path, selected_attrs, transform, mode)
+    elif dataset == 'RaFD':
+        dataset = ImageFolder(image_dir, transform)
+
+    data_loader = data.DataLoader(dataset=dataset,
+                                  batch_size=batch_size,
+                                  shuffle=(mode=='train'),
+                                  num_workers=num_workers)
+    return data_loader
+
+###############################################################<-
+
+
 class Generator(nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
-        input_dim = opt.latent_dim + opt.n_classes + opt.code_dim  #62+10+2=74
+        input_dim = opt.latent_dim + opt.n_classes + opt.code_dim  #127+1+1
 
-        self.init_size = opt.img_size // 4 # Initial size before upsampling
-        self.l1 = nn.Sequential(nn.Linear(input_dim, 128*self.init_size**2))
+        self.init_size = opt.img_size // 4 # Initial size before upsampling 32
+        self.l1 = nn.Sequential(nn.Linear(input_dim, 256*self.init_size**2))
 
         self.conv_blocks = nn.Sequential(
             nn.BatchNorm2d(128),
             nn.Upsample(scale_factor=2),
-            nn.Conv2d(128, 128, 3, stride=1, padding=1),
+            nn.Conv2d(256, 256, 3, stride=1, padding=1),
             nn.BatchNorm2d(128, 0.8),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Upsample(scale_factor=2),
-            nn.Conv2d(128, 64, 3, stride=1, padding=1),
+            nn.Conv2d(256, 128, 3, stride=1, padding=1),
             nn.BatchNorm2d(64, 0.8),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(64, opt.channels, 3, stride=1, padding=1),
+            nn.Conv2d(128, opt.channels, 3, stride=1, padding=1),
             nn.Tanh()
         )
 
     def forward(self, noise, labels, code):
         gen_input = torch.cat((noise, labels, code), -1)  #cat = concatenent 74 dim
-        out = self.l1(gen_input)  # input dim 74, output dim 128*8**2=8192
+        out = self.l1(gen_input)  # input dim 74, output dim 128*32**2
         out = out.view(out.shape[0], 128, self.init_size, self.init_size)
         img = self.conv_blocks(out)
         return img
@@ -102,7 +215,7 @@ class Discriminator(nn.Module):
         )
 
         # The height and width of downsampled image
-        ds_size = opt.img_size // 2**4  # 2
+        ds_size = opt.img_size // 2**4  # 8
 
         # Output layers
         self.adv_layer = nn.Sequential(nn.Linear(128*ds_size**2, 1))
@@ -145,16 +258,26 @@ if cuda:
 generator.apply(weights_init_normal)
 discriminator.apply(weights_init_normal)
 
-# Configure data loader
-os.makedirs('../../data/mnist', exist_ok=True)
-dataloader = torch.utils.data.DataLoader(
-    datasets.MNIST('../../data/mnist', train=True, download=True,
-                   transform=transforms.Compose([
-                        transforms.Resize(opt.img_size),
-                        transforms.ToTensor(),
-                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                   ])),
-    batch_size=opt.batch_size, shuffle=True)
+############################################################->
+# # Configure data loader
+# os.makedirs('../../data/mnist', exist_ok=True)
+# dataloader = torch.utils.data.DataLoader(
+#     datasets.MNIST('../../data/mnist', train=True, download=True,
+#                    transform=transforms.Compose([
+#                         transforms.Resize(opt.img_size),
+#                         transforms.ToTensor(),
+#                         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+#                    ])),
+#     batch_size=opt.batch_size, shuffle=True)
+
+dataloader = get_loader(opt.celeba_image_dir, opt.attr_path, opt.selected_attrs,
+                                   opt.celeba_crop_size, opt.image_size, opt.batch_size,
+                                   'CelebA', opt.mode, opt.num_workers)
+
+
+############################################################<-
+
+
 
 # Optimizers
 optimizer_G = torch.optim.Adam(generator.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
@@ -182,11 +305,11 @@ def sample_image(n_row, batches_done):
     zeros = np.zeros((n_row**2, 1))
     c_varied = np.repeat(np.linspace(-1, 1, n_row)[:, np.newaxis], n_row, 0)
     c1 = Variable(FloatTensor(np.concatenate((c_varied, zeros), -1)))
-    c2 = Variable(FloatTensor(np.concatenate((zeros, c_varied), -1)))
+#    c2 = Variable(FloatTensor(np.concatenate((zeros, c_varied), -1)))
     sample1 = generator(static_z, static_label, c1)
-    sample2 = generator(static_z, static_label, c2)
+#    sample2 = generator(static_z, static_label, c2)
     save_image(sample1.data, 'images/varying_c1/%d.png' % batches_done, nrow=n_row, normalize=True)
-    save_image(sample2.data, 'images/varying_c2/%d.png' % batches_done, nrow=n_row, normalize=True)
+#    save_image(sample2.data, 'images/varying_c2/%d.png' % batches_done, nrow=n_row, normalize=True)
 
 # ----------
 #  Training
