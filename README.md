@@ -2,7 +2,7 @@
 
 this file is used to record all the code I use for my CSE 500 independent study.
 
-1. infogan.py is the code Nando offer to me, with this code, I could use MNIST dataset to see how latent code will affect the features.
+1. infogan.py is the code Nando offer to me, with this code, I could use MNIST dataset to see how latent code will affect the features. And all the original output of the code are in folder: Images-infoGAN-Original
 
 2. data_loader.py is the code from StarGAN, to preprocess the celebA dataset, and use it in StarGAN model.
 
