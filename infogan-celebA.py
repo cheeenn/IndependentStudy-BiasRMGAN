@@ -31,7 +31,7 @@ os.makedirs('images/varying_c2/', exist_ok=True)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs of training')
-parser.add_argument('--batch_size', type=int, default=64, help='size of the batches')
+parser.add_argument('--batch_size', type=int, default=16, help='size of the batches')
 parser.add_argument('--lr', type=float, default=0.0002, help='adam: learning rate')
 parser.add_argument('--b1', type=float, default=0.5, help='adam: decay of first order momentum of gradient')
 parser.add_argument('--b2', type=float, default=0.999, help='adam: decay of first order momentum of gradient')
@@ -55,6 +55,9 @@ parser.add_argument('--num_workers', type=int, default=1)
 parser.add_argument('--mode', type=str, default='train', choices=['train', 'test'])
 parser.add_argument('--selected_attrs', '--list', nargs='+', help='selected attributes for the CelebA dataset',
                         default=['Pale_Skin'])
+parser.add_argument('--image_size', type=int, default=128, help='image resolution')
+parser.add_argument('--celeba_crop_size', type=int, default=178, help='crop size for the CelebA dataset')
+#parser.add_argument('--batch_size', type=int, default=16, help='mini-batch size')
 ############################################################<-
 
 opt = parser.parse_args()
