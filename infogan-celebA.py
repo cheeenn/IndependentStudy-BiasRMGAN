@@ -31,16 +31,16 @@ os.makedirs('images/varying_c2/', exist_ok=True)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--n_epochs', type=int, default=200, help='number of epochs of training')
-parser.add_argument('--batch_size', type=int, default=16, help='size of the batches')
+parser.add_argument('--batch_size', type=int, default=32, help='size of the batches') # old default 64
 parser.add_argument('--lr', type=float, default=0.0002, help='adam: learning rate')
 parser.add_argument('--b1', type=float, default=0.5, help='adam: decay of first order momentum of gradient')
 parser.add_argument('--b2', type=float, default=0.999, help='adam: decay of first order momentum of gradient')
 parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
-parser.add_argument('--latent_dim', type=int, default=127, help='dimensionality of the latent space') # old default 62, in StarGAN, 127
-parser.add_argument('--code_dim', type=int, default=1, help='latent code') # old default 2, in StarGAN, 1
-parser.add_argument('--n_classes', type=int, default=1, help='number of classes for dataset') # old default 10, in StarGAN, 1
-parser.add_argument('--img_size', type=int, default=128, help='size of each image dimension') # old default 32, in StarGAN, 128
-parser.add_argument('--channels', type=int, default=3, help='number of image channels') # old default 1, in StarGAN, 3
+parser.add_argument('--latent_dim', type=int, default=128, help='dimensionality of the latent space') # old default 62
+parser.add_argument('--code_dim', type=int, default=1, help='latent code') # old default 2
+parser.add_argument('--n_classes', type=int, default=1, help='number of classes for dataset') # old default 10
+parser.add_argument('--img_size', type=int, default=128, help='size of each image dimension') # old default 32
+parser.add_argument('--channels', type=int, default=3, help='number of image channels') # old default 1
 parser.add_argument('--sample_interval', type=int, default=400, help='interval between image sampling')
 
 ############################################################->
@@ -76,7 +76,7 @@ def weights_init_normal(m):
 def to_categorical(y, num_columns):
     """Returns one-hot encoded Variable"""
     y_cat = np.zeros((y.shape[0], num_columns))
-    y_cat[range(y.shape[0]), y] = 1.
+    y_cat[range(y.shape[0]), y] = 1.     # y.shanpe[0] gives the row size of y
 
     return Variable(FloatTensor(y_cat))
 
@@ -156,6 +156,7 @@ def get_loader(image_dir, attr_path, selected_attrs, crop_size=178, image_size=1
 
     if dataset == 'CelebA':
         dataset = CelebA(image_dir, attr_path, selected_attrs, transform, mode)
+        print ("get dataset")
     elif dataset == 'RaFD':
         dataset = ImageFolder(image_dir, transform)
 
@@ -319,6 +320,7 @@ def sample_image(n_row, batches_done):
 # ----------
 
 for epoch in range(opt.n_epochs):
+#    print (dataloader)
     for i, (imgs, labels) in enumerate(dataloader):
 
         batch_size = imgs.shape[0]
@@ -329,6 +331,8 @@ for epoch in range(opt.n_epochs):
 
         # Configure input
         real_imgs = Variable(imgs.type(FloatTensor))
+        print (labels.numpy())
+        print (to_categorical(labels.numpy(), num_columns=opt.n_classes))
         labels = to_categorical(labels.numpy(), num_columns=opt.n_classes)
 
         # -----------------
