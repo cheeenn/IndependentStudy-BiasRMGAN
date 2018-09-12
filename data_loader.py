@@ -5,7 +5,7 @@ from PIL import Image
 import torch
 import os
 import random
-
+#check
 
 class CelebA(data.Dataset):
     """Dataset class for the CelebA dataset."""
