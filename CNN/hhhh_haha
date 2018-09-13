@@ -1,0 +1,37 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class CNN_net(nn.Module):
+    def __init__(self):
+        # run nn.module initial 
+        super(CNN_net, self).__init__()
+        # the define of converge input is one channel gray picture , output is 4 feature. each converge is 9*9
+        self.conv = nn.Conv2d(1, 4, 9)
+        # even pool 
+        self.pool = nn.AvgPool2d(2, 2)
+        # all_connect then softmax
+        self.fc = nn.Linear(10*10*4, 10)
+        self.softmax = nn.Softmax()
+ 
+    def forward(self, x):
+        # 2D converge ->sigmoid stimulate ->pool    
+        out = self.conv(x)
+        out = F.sigmoid(out)
+        out = self.pool(out)
+        print(out.size())
+        # (batchSize*filterDim*featureDim*featureDim->batchSize*flat_features) change feature dimension 
+        out = out.view(-1, self.num_flat_features(out))
+        # all_connect  softmax process
+        out = self.fc(out)
+        out = self.softmax(out)
+        return out
+    def num_flat_features(self, x):
+        # 4D feature,first D is batchSize
+        size = x.size()[1:]
+        num_features = 1
+        for s in size:
+            num_features *= s
+        return num_features
+    
