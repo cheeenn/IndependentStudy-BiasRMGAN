@@ -1,0 +1,57 @@
+import os
+import torch
+import torchvision
+import numpy as np
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import hhhh_haha
+from data_loader import get_loader
+import argparse
+
+parser = argparse.ArgumentParser()
+ #data/CelebA_nocrop/images
+parser.add_argument('--celeba_image_dir', type=str, default='/home/research/chenmao/GitHub/IndependentStudy-BiasRMGAN/Pytorch_InfoGAN-master/CelebA/128_crop')  
+parser.add_argument('--attr_path', type=str, default='data/list_attr_celeba.txt')
+parser.add_argument('--selected_attrs', '--list', nargs='+', help='selected attributes for the CelebA dataset',
+                        default=['Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Male', 'Young'])
+parser.add_argument('--celeba_crop_size', type=int, default=178, help='crop size for the CelebA dataset')
+parser.add_argument('--image_size', type=int, default=128, help='image resolution')
+parser.add_argument('--batch_size', type=int, default=16, help='mini-batch size')
+parser.add_argument('--mode', type=str, default='train', choices=['train', 'test'])
+parser.add_argument('--num_workers', type=int, default=1)
+ 
+config = parser.parse_args()
+
+trainloader = get_loader(config.celeba_image_dir, config.attr_path, config.selected_attrs,
+                                   config.celeba_crop_size, config.image_size, config.batch_size,
+                                   'CelebA', config.mode, config.num_workers)
+for i in range(epoches):
+    running_loss = 0.
+    running_acc = 0.
+    for (img, label) in trainloader:
+       
+        img = Variable(img)
+        label = Variable(label)
+ 
+        optimizer.zero_grad()
+ 
+        # feedforward
+        output = net(img)
+        loss = criterian(output, label)
+        # backward
+        loss.backward()
+        optimizer.step()
+ 
+        # record current lost and batchSize data
+        running_loss += loss.data[0]
+        _, predict = torch.max(output, 1)
+        correct_num = (predict == label).sum()
+        running_acc += correct_num.data[0]
+ 
+    # calculate and precise percentage
+    running_loss /= len(trainset)
+    running_acc /= len(trainset)
+ 
+    print("[%d/%d] Loss: %.5f, Acc: %.2f" %(i+1, epoches, running_loss, 100*running_acc))
